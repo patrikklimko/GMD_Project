@@ -19,8 +19,6 @@ In Unity, the simplest setup is:
 - Play them using an `AudioSource` component
 - Trigger sounds from code when events happen
 
-(PICTURE WITH AUDIO SETUP 0)
-
 ### Audio setup in Unity
 We attached an `AudioSource` component to the player, and then exposed `AudioClip` fields in the `PlayerController` script so we can assign sounds directly from the Inspector without hardcoding paths.
 
@@ -44,7 +42,8 @@ Pickups are handled using triggers. So whenever the player touches something tag
 3. update UI text
 4. play the pickup sound
 
-(PICTURE WITH PICKUP SOUND CODE 1)
+<img width="661" height="884" alt="image" src="https://github.com/user-attachments/assets/3c163b01-e5c0-444e-8cae-698f6938caf6" />
+
 
 Code idea (same logic as we used):
 
