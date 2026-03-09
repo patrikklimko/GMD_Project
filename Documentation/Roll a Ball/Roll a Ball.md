@@ -76,7 +76,6 @@ When the player hits an object tagged `"Enemy"`:
 * We show a lose UI message
 * We destroy the player after the sound finishes (so the sound doesn’t get cut off instantly)
 
-(PICTURE WITH GAME OVER CODE 2)
 
 Example structure:
 
@@ -111,7 +110,8 @@ What we changed:
 * Spread pickups so it encourages exploration
 * Used walls to make it feel like a real arena instead of an empty floor
 
-(PICTURE WITH EXPANDED LEVEL OVERVIEW 3)
+<img width="1420" height="873" alt="image" src="https://github.com/user-attachments/assets/146af2b9-a8ee-4642-aec5-895dd9411d75" />
+
 
 Even though we didn’t change the main mechanic, changing the level design alone made the gameplay feel way more engaging.
 
@@ -129,7 +129,8 @@ We implemented this using:
 * Unity’s `Animator` system
 * a trigger parameter to start the door opening animation
 
-(PICTURE WITH DOOR CONTROLLER SCRIPT 4)
+<img width="662" height="456" alt="image" src="https://github.com/user-attachments/assets/2ca30034-c78d-4d13-b8b2-bddb958dba6f" />
+
 
 Example door controller:
 
@@ -160,7 +161,8 @@ The animation logic is handled inside the Animator:
 * When we set the `openDoor` trigger, it transitions to `DoorOpening`
 * The animation plays once and the door is now open
 
-(PICTURE WITH ANIMATOR STATE MACHINE 5)
+<img width="975" height="479" alt="image" src="https://github.com/user-attachments/assets/3a56bf63-98b3-4801-b73c-dc40d7bceeaf" />
+
 
 This approach is clean because:
 
