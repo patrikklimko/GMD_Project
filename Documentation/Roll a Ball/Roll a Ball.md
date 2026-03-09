@@ -171,9 +171,9 @@ This approach is clean because:
 
 ---
 
-## What We Learned (Quick Summary)
+## What I Learned
 
-This small expansion taught us a bunch of “real Unity basics”:
+This small expansion taught me a bunch of “real Unity basics”:
 
 * how to use triggers vs collisions
 * how to add audio properly without hardcoding
