@@ -1,0 +1,21 @@
+# Unity generated folders
+UnityProject/**/[Ll]ibrary/
+UnityProject/**/[Tt]emp/
+UnityProject/**/[Ll]ogs/
+UnityProject/**/[Oo]bj/
+UnityProject/**/[Bb]uild/
+UnityProject/**/[Bb]uilds/
+UnityProject/**/[Mm]emoryCaptures/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Optional: Rider/VS cache
+**/*.csproj
+**/*.sln
