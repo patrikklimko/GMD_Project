@@ -1,4 +1,4 @@
-// PlayerMovement2D.cs
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -11,8 +11,8 @@ public class PlayerMovement2D : MonoBehaviour
 
     [Header("Jump")]
     [SerializeField] private float jumpForce = 12f;
-    [SerializeField] private int maxJumps = 2;                 // 2 = double jump
-    [SerializeField] private float secondJumpMultiplier = 0.9f; // optional: make 2nd jump slightly weaker
+    [SerializeField] private int maxJumps = 2;
+    [SerializeField] private float secondJumpMultiplier = 0.9f;
 
     [Header("Ground Check")]
     [SerializeField] private Transform groundCheck;
@@ -30,11 +30,12 @@ public class PlayerMovement2D : MonoBehaviour
     private SpriteRenderer _sr;
 
     private bool _jumpPressed;
-    private int _facing = 1; // 1 = right, -1 = left
+    private bool _movementLocked;
+    private int _facing = 1;
     private int _jumpsRemaining;
 
-    // Exposed for Animator (prevents drift triggering Run)
     public float MoveX { get; private set; }
+    public int FacingDir { get; private set; } = 1;
 
     private void Awake()
     {
@@ -80,30 +81,33 @@ public class PlayerMovement2D : MonoBehaviour
         Vector2 v = ctx.ReadValue<Vector2>();
         float x = v.x;
 
-        // Deadzone to kill drift
-        if (Mathf.Abs(x) < moveDeadzone) x = 0f;
+        if (Mathf.Abs(x) < moveDeadzone)
+            x = 0f;
 
         MoveX = x;
 
-        // Facing
-        if (MoveX > 0.01f) _facing = 1;
-        else if (MoveX < -0.01f) _facing = -1;
+        if (MoveX > 0.01f)
+            _facing = 1;
+        else if (MoveX < -0.01f)
+            _facing = -1;
 
+        FacingDir = _facing;
         _sr.flipX = (_facing == -1);
     }
 
     private void FixedUpdate()
     {
-        // Move
-        _rb.linearVelocity = new Vector2(MoveX * moveSpeed, _rb.linearVelocity.y);
+        // Only apply normal movement if not temporarily locked by knockback
+        if (!_movementLocked)
+        {
+            _rb.linearVelocity = new Vector2(MoveX * moveSpeed, _rb.linearVelocity.y);
+        }
 
-        // Reset jumps when grounded
         if (IsGrounded())
         {
             _jumpsRemaining = maxJumps;
         }
 
-        // Jump (supports double jump)
         if (_jumpPressed && _jumpsRemaining > 0)
         {
             float multiplier = (_jumpsRemaining == 1) ? secondJumpMultiplier : 1f;
@@ -120,6 +124,18 @@ public class PlayerMovement2D : MonoBehaviour
     private void OnJump(InputAction.CallbackContext ctx)
     {
         _jumpPressed = true;
+    }
+
+    public void LockMovement(float duration)
+    {
+        StartCoroutine(LockMovementRoutine(duration));
+    }
+
+    private IEnumerator LockMovementRoutine(float duration)
+    {
+        _movementLocked = true;
+        yield return new WaitForSeconds(duration);
+        _movementLocked = false;
     }
 
     private bool IsGrounded()
