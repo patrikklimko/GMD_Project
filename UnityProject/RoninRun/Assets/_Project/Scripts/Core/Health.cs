@@ -1,12 +1,15 @@
+using System;
 using UnityEngine;
 
-public class Health : MonoBehaviour
+public class Health : MonoBehaviour, IDamageable
 {
     [SerializeField] private int maxHp = 3;
     private int _hp;
 
     public int CurrentHp => _hp;
     public int MaxHp => maxHp;
+
+    public event Action OnDied;
 
     private void Awake()
     {
@@ -24,6 +27,7 @@ public class Health : MonoBehaviour
 
     private void Die()
     {
+        OnDied?.Invoke();
         Destroy(gameObject);
     }
 }
