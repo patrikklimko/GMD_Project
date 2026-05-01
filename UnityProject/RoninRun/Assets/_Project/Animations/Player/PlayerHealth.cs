@@ -8,9 +8,8 @@ public class PlayerHealth : MonoBehaviour
 {
     [SerializeField] private int maxHp = 5;
     [SerializeField] private float invincibleTime = 1f;
-    [SerializeField] private float knockbackForce = 16f;
     [SerializeField] private float movementLockTime = 0.15f;
-    [SerializeField] private float deathReloadDelay = 2f;
+    [SerializeField] private float deathReloadDelay = 1.2f;
 
     private int _hp;
     private bool _isInvincible;
@@ -28,7 +27,7 @@ public class PlayerHealth : MonoBehaviour
         _movement = GetComponent<PlayerMovement2D>();
     }
 
-    public void TakeDamage(int amount, Vector2 hitDirection)
+    public void TakeDamage(int amount, Vector2 knockbackForce)
     {
         if (_isInvincible || _isDead) return;
 
@@ -36,7 +35,7 @@ public class PlayerHealth : MonoBehaviour
         Debug.Log("Player HP: " + _hp);
 
         _rb.linearVelocity = Vector2.zero;
-        _rb.AddForce(hitDirection.normalized * knockbackForce, ForceMode2D.Impulse);
+        _rb.AddForce(knockbackForce, ForceMode2D.Impulse);
 
         if (_movement != null)
         {
@@ -58,7 +57,6 @@ public class PlayerHealth : MonoBehaviour
 
         _isDead = true;
         Debug.Log("PLAYER DEAD");
-
         StartCoroutine(ReloadCurrentScene());
     }
 
