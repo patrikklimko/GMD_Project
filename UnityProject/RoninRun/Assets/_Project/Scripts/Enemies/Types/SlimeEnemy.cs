@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class SlimeEnemy : EnemyBase
@@ -6,20 +7,20 @@ public class SlimeEnemy : EnemyBase
     [SerializeField] private Transform leftPoint;
     [SerializeField] private Transform rightPoint;
     [SerializeField] private bool startMovingRight = true;
-    
 
     [Header("Attack")]
-    [SerializeField] private int contactDamage = 1;
-    [SerializeField] private float attackCooldown = 1f;
+    [SerializeField] private float attackCooldown = 2f;
+    [SerializeField] private float attackTriggerRange = 4f;
     [SerializeField] private Animator animator;
+    [SerializeField] private SlimeAttack slimeAttack;
 
     private int _patrolDirection = 1;
     private bool _isChasingPlayer;
-    private bool _isAttacking;
+    private bool _isPerformingAttack;
     private float _attackTimer;
-    public int FacingDirection { get; private set; } = 1;
-
     private float _originalScaleX;
+
+    public int FacingDirection { get; private set; } = 1;
 
     protected override void Awake()
     {
@@ -27,6 +28,9 @@ public class SlimeEnemy : EnemyBase
 
         if (animator == null)
             animator = GetComponent<Animator>();
+
+        if (slimeAttack == null)
+            slimeAttack = GetComponent<SlimeAttack>();
 
         _originalScaleX = Mathf.Abs(transform.localScale.x);
     }
@@ -39,22 +43,30 @@ public class SlimeEnemy : EnemyBase
 
     protected override void TickBehaviour()
     {
-        _attackTimer -= Time.deltaTime;
+        if (_attackTimer > 0f)
+            _attackTimer -= Time.deltaTime;
 
-        _isChasingPlayer = IsPlayerInDetectionRange();
-        _isAttacking = IsPlayerInAttackRange();
+        float distance = DistanceToPlayer();
+
+        _isChasingPlayer = distance <= detectionRange;
+
+        if (!_isPerformingAttack && distance <= attackTriggerRange && _attackTimer <= 0f)
+        {
+            StartCoroutine(AttackRoutine());
+            return;
+        }
 
         if (animator != null)
         {
-            float speedValue = (!_isAttacking && Mathf.Abs(rb.linearVelocity.x) > 0.05f) ? 1f : 0f;
+            float speedValue = (!_isPerformingAttack && Mathf.Abs(rb.linearVelocity.x) > 0.05f) ? 1f : 0f;
             animator.SetFloat("Speed", speedValue);
-            animator.SetBool("IsAttacking", _isAttacking);
+            animator.SetBool("IsAttacking", _isPerformingAttack);
         }
     }
 
     protected override void TickMovement()
     {
-        if (_isAttacking)
+        if (_isPerformingAttack)
         {
             StopMoving();
             return;
@@ -106,48 +118,44 @@ public class SlimeEnemy : EnemyBase
     }
 
     private void UpdateFacingFromDirection(float directionX)
-{
-    if (!canFlipSprite) return;
-    if (Mathf.Abs(directionX) < 0.01f) return;
-
-    FacingDirection = directionX > 0 ? 1 : -1;
-
-    Vector3 scale = transform.localScale;
-
-    // sprite faces LEFT by default
-    scale.x = directionX > 0 ? -_originalScaleX : _originalScaleX;
-
-    transform.localScale = scale;
-}
-
-    private void OnCollisionStay2D(Collision2D collision)
     {
-        if (!_isAttacking) return;
-        if (_attackTimer > 0f) return;
+        if (!canFlipSprite) return;
+        if (Mathf.Abs(directionX) < 0.01f) return;
 
-        PlayerHealth playerHealth = collision.gameObject.GetComponent<PlayerHealth>();
-        if (playerHealth == null) return;
+        FacingDirection = directionX > 0 ? 1 : -1;
 
-        Vector2 hitDirection = (collision.transform.position - transform.position).normalized;
-        playerHealth.TakeDamage(contactDamage, hitDirection);
+        Vector3 scale = transform.localScale;
+
+        // slime faces LEFT by default
+        scale.x = directionX > 0 ? -_originalScaleX : _originalScaleX;
+
+        transform.localScale = scale;
+    }
+
+    private IEnumerator AttackRoutine()
+    {
+        _isPerformingAttack = true;
         _attackTimer = attackCooldown;
+
+        if (player != null)
+        {
+            float directionX = Mathf.Sign(player.position.x - transform.position.x);
+            UpdateFacingFromDirection(directionX);
+        }
+
+        if (animator != null)
+            animator.SetBool("IsAttacking", true);
+
+        yield return slimeAttack.PerformDashAttack();
+
+        if (animator != null)
+            animator.SetBool("IsAttacking", false);
+
+        _isPerformingAttack = false;
     }
 
     protected override void StopMoving()
     {
         rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
-    }
-
-    protected override void OnDrawGizmosSelected()
-    {
-        base.OnDrawGizmosSelected();
-
-        if (leftPoint != null && rightPoint != null)
-        {
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawLine(leftPoint.position, rightPoint.position);
-            Gizmos.DrawWireSphere(leftPoint.position, 0.12f);
-            Gizmos.DrawWireSphere(rightPoint.position, 0.12f);
-        }
     }
 }

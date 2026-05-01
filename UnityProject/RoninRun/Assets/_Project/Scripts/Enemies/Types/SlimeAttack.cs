@@ -6,17 +6,21 @@ public class SlimeAttack : MonoBehaviour
 {
     [Header("Attack")]
     [SerializeField] private Transform attackPoint;
-    [SerializeField] private Vector2 attackBoxSize = new Vector2(1.2f, 1f);
+    [SerializeField] private Vector2 attackBoxSize = new Vector2(3.5f, 2f);
     [SerializeField] private LayerMask playerLayer;
     [SerializeField] private int damage = 1;
+    [SerializeField] private float knockbackForce = 14f;
 
-    [Header("Lunge")]
-    [SerializeField] private float lungeForce = 3f;
-    [SerializeField] private float lungeDuration = 0.12f;
+    [Header("Dash")]
+    [SerializeField] private float windupDelay = 0.18f;
+    [SerializeField] private float dashDistance = 4f;
+    [SerializeField] private float dashDuration = 0.35f;
+    [SerializeField] private float hitMoment = 0.5f;
 
     private SlimeEnemy _slimeEnemy;
     private Rigidbody2D _rb;
     private float _originalAttackPointX;
+    private bool _hasHitDuringThisAttack;
 
     private void Awake()
     {
@@ -24,20 +28,46 @@ public class SlimeAttack : MonoBehaviour
         _rb = GetComponent<Rigidbody2D>();
 
         if (attackPoint != null)
-        {
             _originalAttackPointX = Mathf.Abs(attackPoint.localPosition.x);
-        }
     }
 
-    public void StartLunge()
+    public IEnumerator PerformDashAttack()
     {
-        StartCoroutine(LungeRoutine());
+        if (_slimeEnemy == null || _rb == null)
+            yield break;
+
+        _hasHitDuringThisAttack = false;
+
+        UpdateAttackPointFacing();
+
+        // Let the spin animation start first
+        yield return new WaitForSeconds(windupDelay);
+
+        Vector2 startPos = _rb.position;
+        Vector2 endPos = startPos + new Vector2(_slimeEnemy.FacingDirection * dashDistance, 0f);
+
+        float elapsed = 0f;
+
+        while (elapsed < dashDuration)
+        {
+            elapsed += Time.fixedDeltaTime;
+            float t = Mathf.Clamp01(elapsed / dashDuration);
+
+            Vector2 newPos = Vector2.Lerp(startPos, endPos, t);
+            _rb.MovePosition(newPos);
+
+            if (!_hasHitDuringThisAttack && t >= hitMoment)
+            {
+                DoAttackHit();
+                _hasHitDuringThisAttack = true;
+            }
+
+            yield return new WaitForFixedUpdate();
+        }
     }
 
     public void DoAttackHit()
     {
-        if (attackPoint == null) return;
-
         UpdateAttackPointFacing();
 
         Collider2D[] hits = Physics2D.OverlapBoxAll(
@@ -53,22 +83,9 @@ public class SlimeAttack : MonoBehaviour
             if (playerHealth == null) continue;
 
             Vector2 hitDirection = (hit.transform.position - transform.position).normalized;
-            playerHealth.TakeDamage(damage, hitDirection);
-        }
-    }
+            Vector2 knockback = hitDirection * knockbackForce;
 
-    private IEnumerator LungeRoutine()
-    {
-        if (_rb == null || _slimeEnemy == null) yield break;
-
-        float dir = _slimeEnemy.FacingDirection;
-        float timer = 0f;
-
-        while (timer < lungeDuration)
-        {
-            _rb.MovePosition(_rb.position + new Vector2(dir * lungeForce * Time.fixedDeltaTime, 0f));
-            timer += Time.fixedDeltaTime;
-            yield return new WaitForFixedUpdate();
+            playerHealth.TakeDamage(damage, knockback);
         }
     }
 
