@@ -33,7 +33,7 @@ The course requires six blog posts, each living as a markdown file in this repos
 | #  | Title                                              | Status        |
 |----|----------------------------------------------------|---------------|
 | 1  | [Roll-a-Ball: How We Expanded the Game](Documentation/Roll%20a%20Ball/Roll%20a%20Ball.md) | Published |
-| 2  | Game Design Document & Milestones                  | _In progress_ |
+| 2  | [Game Design Document & Milestones](Documentation/GDD%20and%20Milestones/GDD%20and%20Milestones.md) | Published |
 | 3  | Milestone 1 — Architecture refactor + Wizard enemy | _Planned_     |
 | 4  | Milestone 2 — Audio + game-feel polish + pause menu | _Planned_    |
 | 5  | Milestone 3 — Bringer of Death boss + integration  | _Planned_     |
