@@ -215,6 +215,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 825585722}
+  - {fileID: 1203313853}
   m_Father: {fileID: 2119376298}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &7027985
@@ -255,16 +256,17 @@ MonoBehaviour:
   spriteRenderer: {fileID: 0}
   rb: {fileID: 0}
   health: {fileID: 0}
-  detectionRange: 6
-  attackRange: 2
-  moveSpeed: 2
+  detectionRange: 7
+  attackRange: 4
+  moveSpeed: 1.5
   canFlipSprite: 1
   leftPoint: {fileID: 1803117494}
   rightPoint: {fileID: 1784869609}
   startMovingRight: 1
-  contactDamage: 1
-  attackCooldown: 1
-  animator: {fileID: 0}
+  attackCooldown: 3
+  attackTriggerRange: 4
+  animator: {fileID: 7027985}
+  slimeAttack: {fileID: 0}
 --- !u!114 &7027987
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -364,13 +366,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SlimeAttack
   attackPoint: {fileID: 105835950}
-  attackBoxSize: {x: 1.2, y: 1}
+  attackBoxSize: {x: 3.5, y: 2}
   playerLayer:
     serializedVersion: 2
     m_Bits: 1
   damage: 1
-  lungeForce: 3
-  lungeDuration: 0.12
+  knockbackForce: 14
+  windupDelay: 0.18
+  dashDistance: 4
+  dashDuration: 0.5
+  hitMoment: 0.5
 --- !u!1 &63376103
 GameObject:
   m_ObjectHideFlags: 0
@@ -1722,6 +1727,37 @@ Transform:
   - {fileID: 436591782}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1203313852
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1203313853}
+  m_Layer: 7
+  m_Name: AttackPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1203313853
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1203313852}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.2, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7027984}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1254331909
 GameObject:
   m_ObjectHideFlags: 0
@@ -2618,7 +2654,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   maxHp: 5
   invincibleTime: 1
-  knockbackForce: 8
   movementLockTime: 0.15
   deathReloadDelay: 1.2
 --- !u!1 &1784869608
