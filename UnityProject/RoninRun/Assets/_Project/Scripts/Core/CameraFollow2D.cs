@@ -1,10 +1,22 @@
 using UnityEngine;
 
+/// <summary>
+/// Smooth Vector3.Lerp camera follower for the 2D player. Public
+/// SetTarget / GetTarget hooks let scripted sequences (boss intro,
+/// cutscenes) temporarily steal the camera and hand it back.
+/// </summary>
 public class CameraFollow2D : MonoBehaviour
 {
     [SerializeField] private Transform target;
     [SerializeField] private float smoothSpeed = 5f;
     [SerializeField] private Vector3 offset = new Vector3(0f, 1f, -10f);
+
+    public Transform GetTarget() => target;
+
+    public void SetTarget(Transform newTarget)
+    {
+        target = newTarget;
+    }
 
     private void LateUpdate()
     {
