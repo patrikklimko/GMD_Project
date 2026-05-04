@@ -101,8 +101,10 @@ All third-party assets are CC-0 or otherwise free for commercial and non-commerc
 | Asset                                | Used for                                         | License |
 |--------------------------------------|--------------------------------------------------|---------|
 | Martial Hero Asset Pack              | Player character sprites and animations          | CC-0 — see [`License.txt`](UnityProject/RoninRun/Assets/Martial%20Hero/License.txt) |
-| FeonY — Animated Pixel-Art Backgrounds | Parallax scrolling backgrounds for each level | _License: TBD — to be confirmed and recorded here_ |
-| Slime Asset Pack                     | Slime enemy sprites and animations               | _License: TBD — to be confirmed and recorded here_ |
+| FeonY — Animated Pixel-Art Backgrounds | Parallax scrolling backgrounds for each level | Unity Asset Store EULA — _verify on the asset's store page before submission_ |
+| Slime Asset Pack                     | Slime enemy sprites and animations               | Unity Asset Store EULA — _verify on the asset's store page before submission_ |
+| [Evil Wizard](https://assetstore.unity.com/packages/2d/characters/evil-wizard-168007) by Luiz Melo | Wizard enemy sprites and animations | Unity Asset Store EULA (free) |
+| [Bringer Of Death (free)](https://assetstore.unity.com/packages/2d/characters/bringer-of-death-free-204038) by Clembod | Bringer of Death boss sprites and animations | Unity Asset Store EULA (free) |
 | TextMesh Pro                         | UI text rendering                                | Bundled with Unity |
 | Unity Universal Render Pipeline (URP) | 2D Renderer                                     | Bundled with Unity |
 | Unity Input System                   | Player input                                     | Bundled with Unity |
