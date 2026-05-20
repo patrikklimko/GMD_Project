@@ -77,7 +77,8 @@ public static class IntroSceneBuilder
         body.fontSize = 56;
         body.alignment = TextAlignmentOptions.Center;
         body.color = new Color(1f, 0.95f, 0.85f, 1f);
-        body.enableWordWrapping = true;
+        // textWrappingMode replaces the obsolete enableWordWrapping in newer TMP versions.
+        body.textWrappingMode = TextWrappingModes.Normal;
 
         // --- continue prompt ---------------------------------------------
         GameObject promptGo = new GameObject("ContinuePrompt",
@@ -139,47 +140,37 @@ public static class IntroSceneBuilder
 
     private static void AddSceneToBuildSettings(string path)
     {
+        // Legacy / shared scene list. Still works in Unity 6 when no
+        // build profile overrides it.
         EditorBuildSettingsScene[] existing = EditorBuildSettings.scenes;
+        bool alreadyInShared = false;
         foreach (var s in existing)
         {
-            if (s.path == path) return; // already there
+            if (s.path == path) { alreadyInShared = true; break; }
         }
-        var list = new System.Collections.Generic.List<EditorBuildSettingsScene>(existing);
-        list.Add(new EditorBuildSettingsScene(path, true));
-        EditorBuildSettings.scenes = list.ToArray();
-        Debug.Log($"[IntroSceneBuilder] Added {path} to build settings " +
-                  "(at the end — re-order it manually if you want it between MainMenu and Level1).");
-    }
-
-    private static GameObject NewUI(string name, Transform parent, bool fillParent = false)
-    {
-        GameObject go = new GameObject(name, typeof(RectTransform));
-        go.transform.SetParent(parent, false);
-        if (fillParent)
+        if (!alreadyInShared)
         {
-            RectTransform rt = (RectTransform)go.transform;
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
+            var list = new System.Collections.Generic.List<EditorBuildSettingsScene>(existing);
+            list.Add(new EditorBuildSettingsScene(path, true));
+            EditorBuildSettings.scenes = list.ToArray();
         }
-        return go;
-    }
 
-    private static void EnsureFolder(string folderPath)
-    {
-        if (AssetDatabase.IsValidFolder(folderPath)) return;
-        string[] parts = folderPath.Split('/');
-        string current = parts[0];
-        for (int i = 1; i < parts.Length; i++)
+        // Unity 6 introduced Build Profiles which can carry their own
+        // per-profile scene list that overrides the shared list. We try
+        // to add to the active profile via reflection so we don't take
+        // a hard dependency on the API (which has moved between
+        // Unity versions).
+        bool addedToProfile = TryAddToActiveBuildProfile(path);
+
+        if (addedToProfile)
         {
-            string next = $"{current}/{parts[i]}";
-            if (!AssetDatabase.IsValidFolder(next))
-            {
-                AssetDatabase.CreateFolder(current, parts[i]);
-            }
-            current = next;
+            Debug.Log($"[IntroSceneBuilder] Added {path} to the active Build Profile's " +
+                      "scene list AND the shared scene list. " +
+                      "Verify order in File > Build Profiles " +
+                      "(00_MainMenu, 00b_Intro, 01_Level1, ...).");
         }
-    }
-}
-#endif
+        else
+        {
+            Debug.LogWarning($"[IntroSceneBuilder] Added {path} to the shared scene list, " +
+                             "but could NOT confirm it was added to the active Build Profile. " +
+                             "If pressing Play prints \"S
