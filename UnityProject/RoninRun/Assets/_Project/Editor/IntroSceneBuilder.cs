@@ -16,6 +16,8 @@ using UnityEngine.UI;
 /// inspect and tweak before saving.
 ///
 /// Safe to re-run: an existing 00b_Intro.unity is overwritten.
+/// Adds the scene to both the legacy EditorBuildSettings.scenes
+/// list and (via reflection) to the active Unity 6 Build Profile.
 /// </summary>
 public static class IntroSceneBuilder
 {
@@ -27,7 +29,6 @@ public static class IntroSceneBuilder
     {
         EnsureFolder(ScenesFolder);
 
-        // Save any current work the user has open.
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
         {
             Debug.Log("[IntroSceneBuilder] Build cancelled — user chose not to save current scene.");
@@ -130,13 +131,14 @@ public static class IntroSceneBuilder
             return;
         }
 
-        // Add to build settings if not already present.
         AddSceneToBuildSettings(ScenePath);
 
         Debug.Log($"[IntroSceneBuilder] Saved {ScenePath}. " +
-                  "Open File > Build Profiles to verify scene order: " +
+                  "Verify scene order in File > Build Profiles: " +
                   "00_MainMenu, 00b_Intro, 01_Level1, ...");
     }
+
+    // ---- build settings registration -------------------------------------
 
     private static void AddSceneToBuildSettings(string path)
     {
@@ -166,11 +168,96 @@ public static class IntroSceneBuilder
         {
             Debug.Log($"[IntroSceneBuilder] Added {path} to the active Build Profile's " +
                       "scene list AND the shared scene list. " +
-                      "Verify order in File > Build Profiles " +
-                      "(00_MainMenu, 00b_Intro, 01_Level1, ...).");
+                      "Verify order in File > Build Profiles.");
         }
         else
         {
             Debug.LogWarning($"[IntroSceneBuilder] Added {path} to the shared scene list, " +
                              "but could NOT confirm it was added to the active Build Profile. " +
-                             "If pressing Play prints \"S
+                             "Open File > Build Profiles and drag 00b_Intro into the scene list " +
+                             "between 00_MainMenu and 01_Level1 if Play prints a 'scene not found' error.");
+        }
+    }
+
+    /// <summary>
+    /// Best-effort: add the scene to the active Unity 6 Build Profile's
+    /// scene list. Uses reflection so this script keeps compiling on
+    /// older Unity versions that don't have UnityEditor.Build.Profile.
+    /// </summary>
+    private static bool TryAddToActiveBuildProfile(string scenePath)
+    {
+        System.Type profileType = System.Type.GetType(
+            "UnityEditor.Build.Profile.BuildProfile, UnityEditor.Build.Profile");
+        if (profileType == null) return false;
+
+        System.Reflection.MethodInfo getActive = profileType.GetMethod(
+            "GetActiveBuildProfile",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        if (getActive == null) return false;
+
+        object profile = getActive.Invoke(null, null);
+        if (profile == null) return false;
+
+        System.Reflection.PropertyInfo scenesProp = profileType.GetProperty(
+            "scenes",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (scenesProp == null) return false;
+
+        EditorBuildSettingsScene[] currentScenes = scenesProp.GetValue(profile) as EditorBuildSettingsScene[];
+        if (currentScenes == null) return false;
+
+        foreach (var s in currentScenes)
+        {
+            if (s != null && s.path == scenePath) return true;
+        }
+
+        var list = new System.Collections.Generic.List<EditorBuildSettingsScene>(currentScenes);
+        list.Add(new EditorBuildSettingsScene(scenePath, true));
+
+        try
+        {
+            scenesProp.SetValue(profile, list.ToArray());
+            EditorUtility.SetDirty((Object)profile);
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[IntroSceneBuilder] Reflection write to BuildProfile.scenes failed: {e.Message}");
+            return false;
+        }
+    }
+
+    // ---- UI primitives ---------------------------------------------------
+
+    private static GameObject NewUI(string name, Transform parent, bool fillParent = false)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        if (fillParent)
+        {
+            RectTransform rt = (RectTransform)go.transform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+        return go;
+    }
+
+    private static void EnsureFolder(string folderPath)
+    {
+        if (AssetDatabase.IsValidFolder(folderPath)) return;
+        string[] parts = folderPath.Split('/');
+        string current = parts[0];
+        for (int i = 1; i < parts.Length; i++)
+        {
+            string next = $"{current}/{parts[i]}";
+            if (!AssetDatabase.IsValidFolder(next))
+            {
+                AssetDatabase.CreateFolder(current, parts[i]);
+            }
+            current = next;
+        }
+    }
+}
+#endif
