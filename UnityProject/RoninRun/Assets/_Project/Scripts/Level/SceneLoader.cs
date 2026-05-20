@@ -15,6 +15,7 @@ using UnityEngine.SceneManagement;
 public static class SceneLoader
 {
     public const string MainMenu = "00_MainMenu";
+    public const string Intro    = "00b_Intro";
     public const string Level1   = "01_Level1";
     public const string Level2   = "02_Level2";
     public const string Level3   = "03_Level3";
@@ -25,6 +26,12 @@ public static class SceneLoader
     {
         Time.timeScale = 1f;
         SceneManager.LoadScene(MainMenu);
+    }
+
+    public static void LoadIntro()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(Intro);
     }
 
     public static void RestartCurrentLevel()
