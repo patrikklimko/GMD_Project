@@ -64,28 +64,43 @@ public class PauseMenu : MonoBehaviour
         Time.timeScale = 1f;
     }
 
-    private void Update()
+private void Update()
+{
+    if (PlayerDeathController.IsPlayerDead)
     {
-        // Fallback keyboard polling for scenes where the action ref isn't wired.
-        if (pauseAction == null || pauseAction.action == null)
+        return;
+    }
+
+    // Fallback keyboard polling for scenes where the action ref isn't wired.
+    if (pauseAction == null || pauseAction.action == null)
+    {
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                Toggle();
-            }
+            Toggle();
         }
     }
+}
 
     private void OnPauseInput(InputAction.CallbackContext _)
+{
+    if (PlayerDeathController.IsPlayerDead)
     {
-        Toggle();
+        return;
     }
 
+    Toggle();
+}
+
     public void Toggle()
+{
+    if (PlayerDeathController.IsPlayerDead)
     {
-        if (IsPaused) Resume();
-        else Pause();
+        return;
     }
+
+    if (IsPaused) Resume();
+    else Pause();
+}
 
     public void Pause()
     {

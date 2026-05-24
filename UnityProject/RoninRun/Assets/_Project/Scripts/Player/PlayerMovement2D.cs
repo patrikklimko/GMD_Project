@@ -29,7 +29,6 @@ public class PlayerMovement2D : MonoBehaviour
     private Rigidbody2D _rb;
     private SpriteRenderer _sr;
 
-    private bool _jumpPressed;
     private bool _movementLocked;
     private int _facing = 1;
     private int _jumpsRemaining;
@@ -56,7 +55,6 @@ public class PlayerMovement2D : MonoBehaviour
         if (jumpAction != null)
         {
             jumpAction.action.Enable();
-            jumpAction.action.performed += OnJump;
         }
     }
 
@@ -71,33 +69,17 @@ public class PlayerMovement2D : MonoBehaviour
 
         if (jumpAction != null)
         {
-            jumpAction.action.performed -= OnJump;
             jumpAction.action.Disable();
         }
     }
 
-    private void OnMove(InputAction.CallbackContext ctx)
+    private void Update()
     {
-        Vector2 v = ctx.ReadValue<Vector2>();
-        float x = v.x;
-
-        if (Mathf.Abs(x) < moveDeadzone)
-            x = 0f;
-
-        MoveX = x;
-
-        if (MoveX > 0.01f)
-            _facing = 1;
-        else if (MoveX < -0.01f)
-            _facing = -1;
-
-        FacingDir = _facing;
-        _sr.flipX = (_facing == -1);
+        HandleJumpInput();
     }
 
     private void FixedUpdate()
     {
-        // Only apply normal movement if not temporarily locked by knockback
         if (!_movementLocked)
         {
             _rb.linearVelocity = new Vector2(MoveX * moveSpeed, _rb.linearVelocity.y);
@@ -107,23 +89,64 @@ public class PlayerMovement2D : MonoBehaviour
         {
             _jumpsRemaining = maxJumps;
         }
-
-        if (_jumpPressed && _jumpsRemaining > 0)
-        {
-            float multiplier = (_jumpsRemaining == 1) ? secondJumpMultiplier : 1f;
-
-            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, 0f);
-            _rb.AddForce(Vector2.up * jumpForce * multiplier, ForceMode2D.Impulse);
-
-            _jumpsRemaining--;
-        }
-
-        _jumpPressed = false;
     }
 
-    private void OnJump(InputAction.CallbackContext ctx)
+    private void HandleJumpInput()
     {
-        _jumpPressed = true;
+        if (jumpAction == null || jumpAction.action == null)
+            return;
+
+        if (!jumpAction.action.WasPressedThisFrame())
+            return;
+
+        if (IsGrounded())
+        {
+            _jumpsRemaining = maxJumps;
+        }
+
+        if (_jumpsRemaining <= 0)
+            return;
+
+        PerformJump();
+    }
+
+    private void PerformJump()
+    {
+        float multiplier = (_jumpsRemaining == 1) ? secondJumpMultiplier : 1f;
+
+        // Play sound immediately on accepted jump input.
+        AudioManager.Instance?.PlaySfx(SfxId.Jump);
+
+        // Apply jump immediately in the same frame.
+        _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, 0f);
+        _rb.AddForce(Vector2.up * jumpForce * multiplier, ForceMode2D.Impulse);
+
+        _jumpsRemaining--;
+    }
+
+    private void OnMove(InputAction.CallbackContext ctx)
+    {
+        Vector2 v = ctx.ReadValue<Vector2>();
+        float x = v.x;
+
+        if (Mathf.Abs(x) < moveDeadzone)
+        {
+            x = 0f;
+        }
+
+        MoveX = x;
+
+        if (MoveX > 0.01f)
+        {
+            _facing = 1;
+        }
+        else if (MoveX < -0.01f)
+        {
+            _facing = -1;
+        }
+
+        FacingDir = _facing;
+        _sr.flipX = (_facing == -1);
     }
 
     public void LockMovement(float duration)
@@ -140,13 +163,21 @@ public class PlayerMovement2D : MonoBehaviour
 
     private bool IsGrounded()
     {
-        if (groundCheck == null) return false;
+        if (groundCheck == null)
+        {
+            return false;
+        }
+
         return Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
     }
 
     private void OnDrawGizmosSelected()
     {
-        if (groundCheck == null) return;
+        if (groundCheck == null)
+        {
+            return;
+        }
+
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
     }

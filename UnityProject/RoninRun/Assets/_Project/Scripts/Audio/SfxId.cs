@@ -13,6 +13,11 @@ public enum SfxId
     // Combat
     PlayerSwordSwing,
     PlayerSwordHit,
+    SwordSlash1,
+SwordSlash2,
+ SwordImpact,
+  Jump,
+EnemyDeathSlime,
     PlayerHurt,
     PlayerDeath,
     EnemyHit,
@@ -28,6 +33,7 @@ public enum SfxId
     UiButtonHover,
     UiPause,
     UiUnpause,
+    LevelEnd,
 
     // Game flow
     LevelComplete,

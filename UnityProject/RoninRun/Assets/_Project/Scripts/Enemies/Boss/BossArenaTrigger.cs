@@ -42,13 +42,15 @@ public class BossArenaTrigger : MonoBehaviour
     }
 
     private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (_triggered) return;
-        if (other.GetComponent<PlayerMovement2D>() == null) return;
+{
+    if (_triggered) return;
+    if (other.GetComponent<PlayerMovement2D>() == null) return;
 
-        _triggered = true;
-        StartCoroutine(IntroRoutine());
-    }
+    Debug.Log("BOSS ARENA TRIGGERED");
+
+    _triggered = true;
+    StartCoroutine(IntroRoutine());
+}
 
     private IEnumerator IntroRoutine()
     {
