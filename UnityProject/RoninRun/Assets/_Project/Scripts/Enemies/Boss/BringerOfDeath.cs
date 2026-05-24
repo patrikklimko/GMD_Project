@@ -1,6 +1,11 @@
 using System.Collections;
 using UnityEngine;
 
+/// <summary>
+/// Final boss. Two-phase fight:
+/// Phase 1: walks toward player, slashes in melee, charges at mid-range.
+/// Phase 2: teleports with Spell animation, optionally casts projectile, waits, then repeats.
+/// </summary>
 public class BringerOfDeath : EnemyBase
 {
     private enum BossState
@@ -13,7 +18,6 @@ public class BringerOfDeath : EnemyBase
         Charge,
         PhaseTransition,
         Teleport,
-        WindUpCast,
         Cast,
         Recover,
         Dead
@@ -53,16 +57,14 @@ public class BringerOfDeath : EnemyBase
     [SerializeField] private Transform[] teleportAnchors;
     [SerializeField] private float teleportFadeOut = 0.2f;
     [SerializeField] private float teleportFadeIn = 0.2f;
-    [SerializeField] private float teleportCooldown = 4f;
+    [SerializeField] private float teleportCooldown = 6f;
     [SerializeField] private float stayAfterTeleportSeconds = 4f;
 
     [SerializeField] private Projectile projectilePrefab;
     [SerializeField] private Transform castPoint;
     [SerializeField] private int projectileDamage = 2;
     [SerializeField] private float projectileSpeed = 7f;
-    [SerializeField] private float castWindUp = 0.5f;
-    [SerializeField] private float castCooldown = 2.5f;
-    [SerializeField] [Range(5f, 60f)] private float fanAngleDegrees = 25f;
+    [SerializeField] private float castWindUp = 0.6f;
 
     [Header("Phase transition")]
     [SerializeField] private float phaseTransitionDuration = 1.5f;
@@ -71,10 +73,8 @@ public class BringerOfDeath : EnemyBase
     [Header("Animation")]
     [SerializeField] private string speedParam = "Speed";
     [SerializeField] private string slashParam = "Slash";
-    [SerializeField] private string castParam = "Cast";
-    [SerializeField] private string deathParam = "Death";
     [SerializeField] private string spellParam = "Spell";
-
+    [SerializeField] private string deathParam = "Death";
 
     [Header("Facing")]
     [Tooltip("Toggle this if the boss looks away from the player.")]
@@ -92,11 +92,8 @@ public class BringerOfDeath : EnemyBase
     private BossState _state = BossState.Intro;
 
     private float _chargeTimer;
-    private float _castTimer;
     private float _teleportTimer;
 
-    // HARD slash cooldown.
-    // This is the important anti-spam fix.
     private float _nextSlashAllowedTime;
     private bool _slashRoutineRunning;
     private float _meleeLockedUntil;
@@ -116,19 +113,13 @@ public class BringerOfDeath : EnemyBase
         ForceChildVisualReferences();
 
         if (health == null)
-        {
             health = GetComponent<Health>();
-        }
 
         if (rb == null)
-        {
             rb = GetComponent<Rigidbody2D>();
-        }
 
         if (deathSequence == null)
-        {
             deathSequence = GetComponent<BossDeathSequence>();
-        }
 
         ApplyConfig();
         DebugValidateReferences("Awake");
@@ -158,65 +149,55 @@ public class BringerOfDeath : EnemyBase
     }
 
     private void ForceChildVisualReferences()
-{
-    Animator childAnimator = null;
-    SpriteRenderer childRenderer = null;
-
-    foreach (Animator candidate in GetComponentsInChildren<Animator>(true))
     {
-        if (candidate.gameObject != gameObject)
+        Animator childAnimator = null;
+        SpriteRenderer childRenderer = null;
+
+        foreach (Animator candidate in GetComponentsInChildren<Animator>(true))
         {
-            childAnimator = candidate;
-            break;
+            if (candidate.gameObject != gameObject)
+            {
+                childAnimator = candidate;
+                break;
+            }
         }
+
+        foreach (SpriteRenderer candidate in GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (candidate.gameObject != gameObject)
+            {
+                childRenderer = candidate;
+                break;
+            }
+        }
+
+        if (animator == null || animator.gameObject == gameObject)
+        {
+            animator = childAnimator;
+
+            if (animator != null)
+                Log("Auto-assigned child Animator: " + animator.gameObject.name);
+            else
+                LogWarning("No child Animator found. Boss animations will not play.");
+        }
+
+        if (spriteRenderer == null || spriteRenderer.gameObject == gameObject)
+        {
+            spriteRenderer = childRenderer;
+
+            if (spriteRenderer != null)
+                Log("Auto-assigned child SpriteRenderer: " + spriteRenderer.gameObject.name);
+            else
+                LogWarning("No child SpriteRenderer found. Boss facing/fade will not work.");
+        }
+
+        _spriteRenderer = spriteRenderer;
     }
-
-    foreach (SpriteRenderer candidate in GetComponentsInChildren<SpriteRenderer>(true))
-    {
-        if (candidate.gameObject != gameObject)
-        {
-            childRenderer = candidate;
-            break;
-        }
-    }
-
-    if (animator == null || animator.gameObject == gameObject)
-    {
-        animator = childAnimator;
-
-        if (animator != null)
-        {
-            Log("Auto-assigned child Animator: " + animator.gameObject.name);
-        }
-        else
-        {
-            LogWarning("No child Animator found. Boss animations will not play.");
-        }
-    }
-
-    if (spriteRenderer == null || spriteRenderer.gameObject == gameObject)
-    {
-        spriteRenderer = childRenderer;
-
-        if (spriteRenderer != null)
-        {
-            Log("Auto-assigned child SpriteRenderer: " + spriteRenderer.gameObject.name);
-        }
-        else
-        {
-            LogWarning("No child SpriteRenderer found. Boss facing/fade will not work.");
-        }
-    }
-
-    _spriteRenderer = spriteRenderer;
-}
 
     private void ApplyConfig()
     {
         if (config == null)
-        {
             return;
-        }
 
         moveSpeed = config.moveSpeed;
         detectionRange = config.detectionRange;
@@ -225,7 +206,6 @@ public class BringerOfDeath : EnemyBase
         chargeDamage = Mathf.Max(chargeDamage, config.contactDamage);
         projectileDamage = Mathf.Max(projectileDamage, config.rangedDamage);
 
-        // Keep boss slash cooldown at minimum 4 seconds.
         slashCooldown = Mathf.Max(4f, config.attackCooldown);
         slashWindUp = config.attackWindUp;
     }
@@ -251,42 +231,27 @@ public class BringerOfDeath : EnemyBase
 
         DebugValidateReferences("BeginFight");
 
-        ChangeState(BossState.Walk, "BeginFight");
-
         _chargeTimer = 0f;
-        _castTimer = 0f;
         _teleportTimer = 0f;
-
-        // Allow first slash immediately.
         _nextSlashAllowedTime = 0f;
         _slashRoutineRunning = false;
+        _meleeLockedUntil = 0f;
 
         FacePlayer();
+        ChangeState(BossState.Walk, "BeginFight");
+
         Log("BOSS BEGIN FIGHT CALLED");
     }
 
     protected override void TickBehaviour()
     {
         if (_state == BossState.Dead || _state == BossState.Intro)
-        {
             return;
-        }
+
+        EnsurePlayerReference();
 
         if (player == null)
-        {
-            GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
-
-            if (playerObject != null)
-            {
-                player = playerObject.transform;
-                Log("Player was missing, found by tag: " + player.name);
-            }
-            else
-            {
-                LogWarning("Player is NULL and no GameObject with Tag Player was found.");
-                return;
-            }
-        }
+            return;
 
         if (!_phaseTwoEntered &&
             health != null &&
@@ -301,34 +266,24 @@ public class BringerOfDeath : EnemyBase
         UpdateAnimatorSpeed();
 
         if (_state == BossState.Walk)
-        {
             ChooseNextAttack();
-        }
     }
 
     protected override void TickMovement()
     {
         if (_state == BossState.Dead || _state == BossState.Intro)
-        {
             return;
-        }
 
         if (_state == BossState.Walk)
-        {
             MoveTowardsPlayer();
-        }
         else
-        {
             StopMoving();
-        }
     }
 
     protected override void MoveTowardsPlayer()
     {
         if (player == null || rb == null)
-        {
             return;
-        }
 
         Vector2 targetPosition = new Vector2(player.position.x, rb.position.y);
 
@@ -341,24 +296,33 @@ public class BringerOfDeath : EnemyBase
         rb.MovePosition(newPosition);
     }
 
+    private void EnsurePlayerReference()
+    {
+        if (player != null)
+            return;
+
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+
+        if (playerObject != null)
+        {
+            player = playerObject.transform;
+            Log("Player was missing, found by tag: " + player.name);
+        }
+        else
+        {
+            LogWarning("Player is NULL and no GameObject with Tag Player was found.");
+        }
+    }
+
     private void TickTimers()
     {
         float dt = Time.deltaTime;
 
         if (_chargeTimer > 0f)
-        {
             _chargeTimer -= dt;
-        }
-
-        if (_castTimer > 0f)
-        {
-            _castTimer -= dt;
-        }
 
         if (_teleportTimer > 0f)
-        {
             _teleportTimer -= dt;
-        }
     }
 
     private void UpdateAnimatorSpeed()
@@ -374,130 +338,121 @@ public class BringerOfDeath : EnemyBase
     }
 
     private void ChooseNextAttack()
-{
-    if (player == null)
-        return;
-
-    // Hard action lock. If the boss recently attacked, he does nothing.
-    if (Time.time < _meleeLockedUntil)
     {
-        StopMoving();
-        UpdateAnimatorSpeed();
-        return;
-    }
+        if (player == null)
+            return;
 
-    float distance = DistanceToPlayer();
+        if (Time.time < _meleeLockedUntil)
+        {
+            StopMoving();
+            UpdateAnimatorSpeed();
+            return;
+        }
 
-    LogVerbose(
-        $"State={_state}, Distance={distance:F2}, CanSlash={CanSlash()}, NextSlashAllowed={_nextSlashAllowedTime:F2}, MeleeLockedUntil={_meleeLockedUntil:F2}, Time={Time.time:F2}, Phase2={_phaseTwoEntered}"
-    );
+        float distance = DistanceToPlayer();
 
-    if (_phaseTwoEntered)
-    {
+        LogVerbose(
+            $"State={_state}, Distance={distance:F2}, CanSlash={CanSlash()}, NextSlashAllowed={_nextSlashAllowedTime:F2}, MeleeLockedUntil={_meleeLockedUntil:F2}, TeleportTimer={_teleportTimer:F2}, Time={Time.time:F2}, Phase2={_phaseTwoEntered}"
+        );
+
+        if (_phaseTwoEntered)
+        {
+            if (distance <= slashRange && CanSlash())
+            {
+                StartCoroutine(SlashRoutine());
+                return;
+            }
+
+            if (distance > slashRange + 1.5f && _teleportTimer <= 0f)
+            {
+                StartCoroutine(TeleportThenCastRoutine());
+                return;
+            }
+
+            return;
+        }
+
         if (distance <= slashRange && CanSlash())
         {
             StartCoroutine(SlashRoutine());
             return;
         }
 
-        if (_teleportTimer <= 0f)
+        if (distance >= chargeMinDistance &&
+            distance <= chargeMaxDistance &&
+            _chargeTimer <= 0f)
         {
-            StartCoroutine(TeleportThenCastRoutine());
+            StartCoroutine(ChargeRoutine());
             return;
         }
-
-        return;
     }
 
-    if (distance <= slashRange && CanSlash())
+    private bool CanSlash()
     {
-        StartCoroutine(SlashRoutine());
-        return;
+        if (_slashRoutineRunning)
+            return false;
+
+        if (Time.time < _nextSlashAllowedTime)
+            return false;
+
+        if (Time.time < _meleeLockedUntil)
+            return false;
+
+        return true;
     }
-
-    if (distance >= chargeMinDistance &&
-        distance <= chargeMaxDistance &&
-        _chargeTimer <= 0f)
-    {
-        StartCoroutine(ChargeRoutine());
-        return;
-    }
-}
-
-private bool CanSlash()
-{
-    if (_slashRoutineRunning)
-        return false;
-
-    if (Time.time < _nextSlashAllowedTime)
-        return false;
-
-    if (Time.time < _meleeLockedUntil)
-        return false;
-
-    return true;
-}
 
     private IEnumerator SlashRoutine()
-{
-    if (_slashRoutineRunning)
-        yield break;
-
-    _slashRoutineRunning = true;
-
-    // Lock boss attacks immediately.
-    _nextSlashAllowedTime = Time.time + slashCooldown;
-    _meleeLockedUntil = Time.time + slashCooldown;
-
-    Log("BOSS SLASH STARTED. Next slash allowed at: " + _nextSlashAllowedTime);
-
-    ChangeState(BossState.WindUpSlash, "SlashRoutine");
-
-    FacePlayer();
-    StopMoving();
-    UpdateAnimatorSpeed();
-
-    SendTriggerToAnimator(slashParam, "SLASH");
-
-    if (slashSfx != SfxId.None && AudioManager.Instance != null)
     {
-        AudioManager.Instance.PlaySfx(slashSfx);
-    }
+        if (_slashRoutineRunning)
+            yield break;
 
-    yield return new WaitForSeconds(slashWindUp);
+        _slashRoutineRunning = true;
 
-    if (_state == BossState.Dead)
-    {
-        _slashRoutineRunning = false;
-        yield break;
-    }
+        _nextSlashAllowedTime = Time.time + slashCooldown;
+        _meleeLockedUntil = Time.time + slashCooldown;
 
-    ChangeState(BossState.Slash, "Slash hit moment");
+        Log("BOSS SLASH STARTED. Next slash allowed at: " + _nextSlashAllowedTime);
 
-    DoSlashHit();
+        ChangeState(BossState.WindUpSlash, "SlashRoutine");
 
-    yield return new WaitForSeconds(slashHitMoment);
-
-    if (_state != BossState.Dead)
-    {
-        ChangeState(BossState.Recover, "Slash recovery / waiting for cooldown");
-    }
-
-    // Stay in recovery until the full 4-second cooldown is done.
-    while (_state != BossState.Dead && Time.time < _meleeLockedUntil)
-    {
+        FacePlayer();
         StopMoving();
         UpdateAnimatorSpeed();
-        yield return null;
-    }
 
-    if (_state != BossState.Dead)
-    {
-        ChangeState(BossState.Walk, "Slash cooldown finished");
-    }
+        SendTriggerToAnimator(slashParam, "SLASH");
 
-    _slashRoutineRunning = false;
-}
+        if (slashSfx != SfxId.None && AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfx(slashSfx);
+
+        yield return new WaitForSeconds(slashWindUp);
+
+        if (_state == BossState.Dead)
+        {
+            _slashRoutineRunning = false;
+            yield break;
+        }
+
+        ChangeState(BossState.Slash, "Slash hit moment");
+
+        DoSlashHit();
+
+        yield return new WaitForSeconds(slashHitMoment);
+
+        if (_state != BossState.Dead)
+            ChangeState(BossState.Recover, "Slash recovery / waiting for cooldown");
+
+        while (_state != BossState.Dead && Time.time < _meleeLockedUntil)
+        {
+            StopMoving();
+            UpdateAnimatorSpeed();
+            yield return null;
+        }
+
+        if (_state != BossState.Dead)
+            ChangeState(BossState.Walk, "Slash cooldown finished");
+
+        _slashRoutineRunning = false;
+    }
 
     private void DoSlashHit()
     {
@@ -522,9 +477,7 @@ private bool CanSlash()
             Log("Slash overlapped: " + hit.name + " / root: " + hit.transform.root.name);
 
             if (damagedPlayer)
-            {
                 break;
-            }
 
             PlayerHealth playerHealth = hit.GetComponentInParent<PlayerHealth>();
 
@@ -546,13 +499,9 @@ private bool CanSlash()
         }
 
         if (damagedPlayer)
-        {
             Log("BOSS SLASH HIT PLAYER");
-        }
         else
-        {
             LogWarning("BOSS SLASH MISSED. Increase Slash Hitbox Offset/Size or check Player Layer/Mask.");
-        }
     }
 
     private IEnumerator ChargeRoutine()
@@ -568,9 +517,7 @@ private bool CanSlash()
         yield return new WaitForSeconds(chargeWindUp);
 
         if (_state == BossState.Dead)
-        {
             yield break;
-        }
 
         ChangeState(BossState.Charge, "Charge movement");
 
@@ -617,86 +564,104 @@ private bool CanSlash()
         }
 
         if (_state != BossState.Dead)
-        {
             ChangeState(BossState.Walk, "Charge finished");
-        }
     }
 
     private IEnumerator TeleportThenCastRoutine()
-{
-    Log("BOSS TELEPORT STARTED");
-
-    ChangeState(BossState.Teleport, "TeleportThenCastRoutine");
-
-    // Prevent another teleport routine from starting while this one is running.
-    _teleportTimer = 999f;
-
-    FacePlayer();
-    StopMoving();
-    UpdateAnimatorSpeed();
-
-    // Play teleport/spell animation.
-    SendTriggerToAnimator(spellParam, "SPELL / TELEPORT");
-
-    if (castSfx != SfxId.None && AudioManager.Instance != null)
     {
-        AudioManager.Instance.PlaySfx(castSfx);
+        Log("BOSS TELEPORT STARTED");
+
+        ChangeState(BossState.Teleport, "TeleportThenCastRoutine");
+
+        // Prevent another teleport routine while this one is running.
+        _teleportTimer = 999f;
+
+        FacePlayer();
+        StopMoving();
+        UpdateAnimatorSpeed();
+
+        SendTriggerToAnimator(spellParam, "SPELL / TELEPORT");
+
+        if (castSfx != SfxId.None && AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfx(castSfx);
+
+        yield return new WaitForSeconds(castWindUp);
+
+        if (_state == BossState.Dead)
+            yield break;
+
+        yield return Fade(1f, 0f, teleportFadeOut);
+
+        if (_state == BossState.Dead)
+            yield break;
+
+        Transform anchor = PickTeleportAnchor();
+
+        if (anchor != null)
+        {
+            Log("Teleporting to anchor: " + anchor.name + " at " + anchor.position);
+            transform.position = anchor.position;
+        }
+        else
+        {
+            LogWarning("No teleport anchor found. Boss will not move.");
+        }
+
+        FacePlayer();
+
+        yield return Fade(0f, 1f, teleportFadeIn);
+
+        ForceVisible();
+
+        ChangeState(BossState.Cast, "After teleport / spawn projectiles");
+
+        SpawnFanProjectiles();
+
+        ChangeState(BossState.Recover, "Stay after teleport/cast");
+
+        Log("BOSS STAYS AFTER TELEPORT FOR " + stayAfterTeleportSeconds + " SECONDS");
+
+        yield return new WaitForSeconds(stayAfterTeleportSeconds);
+
+        if (_state != BossState.Dead)
+        {
+            _teleportTimer = teleportCooldown;
+            ChangeState(BossState.Walk, "Recover finished, teleport cooldown started");
+        }
     }
 
-    // Let the Spell animation show before disappearing.
-    yield return new WaitForSeconds(castWindUp);
-
-    if (_state == BossState.Dead)
-        yield break;
-
-    yield return Fade(1f, 0f, teleportFadeOut);
-
-    if (_state == BossState.Dead)
-        yield break;
-
-    Transform anchor = PickTeleportAnchor();
-
-    if (anchor != null)
+    private void EnterPhaseTwo()
     {
-        Log("Teleporting to anchor: " + anchor.name + " at " + anchor.position);
-        transform.position = anchor.position;
-    }
-    else
-    {
-        LogWarning("No teleport anchor found. Boss will not move.");
+        if (_phaseTwoEntered)
+            return;
+
+        _phaseTwoEntered = true;
+        StartCoroutine(PhaseTransitionRoutine());
     }
 
-    FacePlayer();
-
-    yield return Fade(0f, 1f, teleportFadeIn);
-
-    // Force visible after teleport.
-    if (_spriteRenderer != null)
+    private IEnumerator PhaseTransitionRoutine()
     {
-        Color c = _spriteRenderer.color;
-        c.a = 1f;
-        _spriteRenderer.color = c;
+        Log("BOSS ENTERED PHASE 2");
+
+        ChangeState(BossState.PhaseTransition, "PhaseTransitionRoutine");
+
+        _isInvulnerable = true;
+        _invulnUntil = Time.time + phaseTransitionInvulnTime;
+
+        if (phaseTransitionSfx != SfxId.None && AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfx(phaseTransitionSfx, 1.2f);
+
+        yield return Fade(1f, 0.4f, 0.15f);
+        yield return Fade(0.4f, 1f, 0.15f);
+
+        float remaining = Mathf.Max(0f, phaseTransitionDuration - 0.3f);
+        yield return new WaitForSeconds(remaining);
+
+        _isInvulnerable = false;
+        _teleportTimer = 0f;
+
+        ChangeState(BossState.Walk, "Phase transition finished");
     }
-
-    ChangeState(BossState.Cast, "After teleport / spawn projectiles");
-
-    SpawnFanProjectiles();
-
-    ChangeState(BossState.Recover, "Stay after teleport/cast");
-
-    Log("BOSS STAYS AFTER TELEPORT FOR " + stayAfterTeleportSeconds + " SECONDS");
-
-    yield return new WaitForSeconds(stayAfterTeleportSeconds);
-
-    if (_state != BossState.Dead)
-    {
-        // IMPORTANT:
-        // Cooldown starts AFTER the 4 second stay, not before.
-        _teleportTimer = teleportCooldown;
-
-        ChangeState(BossState.Walk, "Recover finished, teleport cooldown started");
-    }
-}
 
     private Transform PickTeleportAnchor()
     {
@@ -707,27 +672,22 @@ private bool CanSlash()
         }
 
         Transform best = null;
-        float bestDist = float.MinValue;
+        float bestDistanceFromPlayer = float.MinValue;
 
         foreach (Transform anchor in teleportAnchors)
         {
             if (anchor == null)
-            {
                 continue;
-            }
 
             if (player == null)
-            {
-                best = anchor;
-                break;
-            }
+                return anchor;
 
-            float dist = Vector2.Distance(anchor.position, player.position);
+            float distance = Vector2.Distance(anchor.position, player.position);
 
-            if (dist > bestDist)
+            if (distance > bestDistanceFromPlayer)
             {
+                bestDistanceFromPlayer = distance;
                 best = anchor;
-                bestDist = dist;
             }
         }
 
@@ -752,68 +712,18 @@ private bool CanSlash()
             ? (Vector2)castPoint.position
             : (Vector2)transform.position;
 
-        Vector2 toPlayer = ((Vector2)player.position - origin).normalized;
+        Vector2 direction = ((Vector2)player.position - origin).normalized;
 
-        float[] offsets = { -fanAngleDegrees, 0f, fanAngleDegrees };
+        Projectile shot = Instantiate(projectilePrefab, origin, Quaternion.identity);
+        shot.Launch(direction, projectileDamage, projectileSpeed);
 
-        foreach (float deg in offsets)
-        {
-            float rad = deg * Mathf.Deg2Rad;
-
-            Vector2 dir = new Vector2(
-                toPlayer.x * Mathf.Cos(rad) - toPlayer.y * Mathf.Sin(rad),
-                toPlayer.x * Mathf.Sin(rad) + toPlayer.y * Mathf.Cos(rad)
-            );
-
-            Projectile shot = Instantiate(projectilePrefab, origin, Quaternion.identity);
-            shot.Launch(dir, projectileDamage, projectileSpeed);
-        }
-
-        Log("BOSS CAST PROJECTILES");
-    }
-
-    private void EnterPhaseTwo()
-    {
-        if (_phaseTwoEntered)
-        {
-            return;
-        }
-
-        _phaseTwoEntered = true;
-        StartCoroutine(PhaseTransitionRoutine());
-    }
-
-    private IEnumerator PhaseTransitionRoutine()
-    {
-        Log("BOSS ENTERED PHASE 2");
-
-        ChangeState(BossState.PhaseTransition, "PhaseTransitionRoutine");
-
-        _isInvulnerable = true;
-        _invulnUntil = Time.time + phaseTransitionInvulnTime;
-
-        if (phaseTransitionSfx != SfxId.None && AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlaySfx(phaseTransitionSfx, 1.2f);
-        }
-
-        yield return Fade(1f, 0.4f, 0.15f);
-        yield return Fade(0.4f, 1f, 0.15f);
-
-        float remaining = Mathf.Max(0f, phaseTransitionDuration - 0.3f);
-        yield return new WaitForSeconds(remaining);
-
-        _isInvulnerable = false;
-
-        ChangeState(BossState.Walk, "Phase transition finished");
+        Log("BOSS CAST PROJECTILE");
     }
 
     public override void Die()
     {
         if (_state == BossState.Dead)
-        {
             return;
-        }
 
         Log("BOSS DEATH STARTED");
 
@@ -822,17 +732,14 @@ private bool CanSlash()
         StopAllCoroutines();
         StopMoving();
 
+        ForceVisible();
         SendTriggerToAnimator(deathParam, "DEATH");
 
         if (deathSfx != SfxId.None && AudioManager.Instance != null)
-        {
             AudioManager.Instance.PlaySfx(deathSfx);
-        }
 
         if (deathSequence != null)
-        {
             deathSequence.Begin();
-        }
         else
         {
             LogWarning("DeathSequence is NULL. Loading Victory directly.");
@@ -845,9 +752,7 @@ private bool CanSlash()
         Log($"Boss HP changed: {current}/{max}");
 
         if (_isInvulnerable && Time.time < _invulnUntil)
-        {
             Log("Boss is currently marked invulnerable.");
-        }
     }
 
     private void HandleDied()
@@ -859,16 +764,12 @@ private bool CanSlash()
     private float FacingSign()
     {
         if (player == null)
-        {
             return spriteRenderer != null && spriteRenderer.flipX ? -1f : 1f;
-        }
 
         float sign = Mathf.Sign(player.position.x - transform.position.x);
 
         if (Mathf.Approximately(sign, 0f))
-        {
             return 1f;
-        }
 
         return sign;
     }
@@ -876,9 +777,7 @@ private bool CanSlash()
     private void FacePlayer()
     {
         if (player == null || spriteRenderer == null)
-        {
             return;
-        }
 
         bool playerIsRight = player.position.x > transform.position.x;
 
@@ -918,6 +817,16 @@ private bool CanSlash()
         _spriteRenderer.color = color;
     }
 
+    private void ForceVisible()
+    {
+        if (_spriteRenderer == null)
+            return;
+
+        Color c = _spriteRenderer.color;
+        c.a = 1f;
+        _spriteRenderer.color = c;
+    }
+
     public bool ConsumeIfInvulnerable()
     {
         return _isInvulnerable && Time.time < _invulnUntil;
@@ -941,9 +850,7 @@ private bool CanSlash()
         animator.SetTrigger(triggerName);
 
         if (debugAnimatorLogs)
-        {
             Log($"BOSS {readableName} TRIGGER SENT TO ANIMATOR: {animator.gameObject.name}, parameter={triggerName}");
-        }
     }
 
     private bool HasAnimatorParameter(
@@ -952,16 +859,12 @@ private bool CanSlash()
         AnimatorControllerParameterType type)
     {
         if (targetAnimator == null)
-        {
             return false;
-        }
 
         foreach (AnimatorControllerParameter parameter in targetAnimator.parameters)
         {
             if (parameter.name == parameterName && parameter.type == type)
-            {
                 return true;
-            }
         }
 
         return false;
@@ -973,17 +876,13 @@ private bool CanSlash()
         _state = newState;
 
         if (oldState != newState)
-        {
             Log($"STATE CHANGE: {oldState} → {newState}. Reason: {reason}");
-        }
     }
 
     private void DebugValidateReferences(string context)
     {
         if (!debugLogs)
-        {
             return;
-        }
 
         Log($"--- Boss reference check: {context} ---");
         Log("Player: " + (player != null ? player.name : "NULL"));
@@ -998,26 +897,20 @@ private bool CanSlash()
         if (animator != null)
         {
             foreach (AnimatorControllerParameter parameter in animator.parameters)
-            {
                 Log($"Animator param found: {parameter.name} / {parameter.type}");
-            }
         }
     }
 
     private void Log(string message)
     {
         if (debugLogs)
-        {
             Debug.Log("[BringerOfDeath] " + message, this);
-        }
     }
 
     private void LogWarning(string message)
     {
         if (debugLogs)
-        {
             Debug.LogWarning("[BringerOfDeath] " + message, this);
-        }
     }
 
     private void LogError(string message)
@@ -1028,9 +921,7 @@ private bool CanSlash()
     private void LogVerbose(string message)
     {
         if (debugLogs && false)
-        {
             Debug.Log("[BringerOfDeath][Verbose] " + message, this);
-        }
     }
 
     protected override void OnDrawGizmosSelected()
@@ -1052,12 +943,10 @@ private bool CanSlash()
 
         if (teleportAnchors != null)
         {
-            for (int i = 0; i < teleportAnchors.Length; i++)
+            foreach (Transform anchor in teleportAnchors)
             {
-                if (teleportAnchors[i] != null)
-                {
-                    Gizmos.DrawWireSphere(teleportAnchors[i].position, 0.4f);
-                }
+                if (anchor != null)
+                    Gizmos.DrawWireSphere(anchor.position, 0.4f);
             }
         }
 
