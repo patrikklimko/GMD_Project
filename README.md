@@ -21,7 +21,7 @@ This is a **solo** project. All commits in this repository represent my own work
 ## Quick links
 
 - **Playable WebGL build:** _coming soon — will be published at `https://patrikklimko.github.io/GMD_Project/`_
-- **Gameplay video (~2 min, YouTube):** _coming soon — link will be added before submission_
+- **Gameplay video (~2 min, YouTube):** (https://www.youtube.com/watch?v=oi6kMa-Szss)
 - **Development roadmap:** [`ROADMAP.md`](ROADMAP.md)
 
 ---
