@@ -82,9 +82,12 @@ public class BringerOfDeath : EnemyBase
 
     [Header("SFX")]
     [SerializeField] private SfxId phaseTransitionSfx = SfxId.None;
-    [SerializeField] private SfxId slashSfx = SfxId.SwordSlash1;
+    [SerializeField] private SfxId slashSfx = SfxId.BossAttack;
+    [SerializeField] private SfxId chargeSfx = SfxId.BossAttack;
     [SerializeField] private SfxId castSfx = SfxId.WizardCast;
-    [SerializeField] private SfxId deathSfx = SfxId.None;
+    [SerializeField] private SfxId deathSfx = SfxId.BossDeath;
+    [Range(0f, 1.5f)]
+    [SerializeField] private float attackSfxVolume = 1f;
 
     [Header("Death sequence")]
     [SerializeField] private BossDeathSequence deathSequence;
@@ -282,18 +285,37 @@ public class BringerOfDeath : EnemyBase
 
     protected override void MoveTowardsPlayer()
     {
-        if (player == null || rb == null)
+        if (player == null)
+        {
+            LogVerbose("MoveTowardsPlayer: player is NULL.");
             return;
+        }
 
-        Vector2 targetPosition = new Vector2(player.position.x, rb.position.y);
+        float dx = player.position.x - transform.position.x;
+        float absDx = Mathf.Abs(dx);
 
-        Vector2 newPosition = Vector2.MoveTowards(
-            rb.position,
-            targetPosition,
-            moveSpeed * Time.fixedDeltaTime
-        );
+        if (absDx <= slashRange * 0.5f)
+        {
+            if (rb != null)
+                rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+            return;
+        }
 
-        rb.MovePosition(newPosition);
+        float dir = Mathf.Sign(dx);
+        Vector3 before = transform.position;
+
+        // Direct transform translation — guaranteed to move the boss
+        // regardless of mass, contact forces, or collision resistance.
+        // FixedUpdate runs ~50Hz, so use fixedDeltaTime for smooth motion.
+        float deltaX = dir * moveSpeed * Time.fixedDeltaTime;
+        transform.position = new Vector3(before.x + deltaX, before.y, before.z);
+
+        // Also clear any residual rigidbody X velocity so the next physics
+        // step doesn't fight our move.
+        if (rb != null)
+            rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+
+        LogVerbose($"Walk dx={dx:F2} dir={dir} moveSpeed={moveSpeed} from={before.x:F2} to={transform.position.x:F2}");
     }
 
     private void EnsurePlayerReference()
@@ -422,7 +444,7 @@ public class BringerOfDeath : EnemyBase
         SendTriggerToAnimator(slashParam, "SLASH");
 
         if (slashSfx != SfxId.None && AudioManager.Instance != null)
-            AudioManager.Instance.PlaySfx(slashSfx);
+            AudioManager.Instance.PlaySfx(slashSfx, attackSfxVolume);
 
         yield return new WaitForSeconds(slashWindUp);
 
@@ -513,6 +535,9 @@ public class BringerOfDeath : EnemyBase
 
         FacePlayer();
         SendTriggerToAnimator(slashParam, "CHARGE using SLASH animation");
+
+        if (chargeSfx != SfxId.None && AudioManager.Instance != null)
+            AudioManager.Instance.PlaySfx(chargeSfx, attackSfxVolume);
 
         yield return new WaitForSeconds(chargeWindUp);
 
@@ -671,27 +696,29 @@ public class BringerOfDeath : EnemyBase
             return null;
         }
 
-        Transform best = null;
-        float bestDistanceFromPlayer = float.MinValue;
+        // Pure random selection across all non-null anchors.
+        // (Was previously: always pick the farthest from the player. The
+        // user wants truly random teleport destinations.)
+        int validCount = 0;
+        for (int i = 0; i < teleportAnchors.Length; i++)
+            if (teleportAnchors[i] != null) validCount++;
 
-        foreach (Transform anchor in teleportAnchors)
+        if (validCount == 0)
+            return null;
+
+        int pick = Random.Range(0, validCount);
+        int seen = 0;
+        for (int i = 0; i < teleportAnchors.Length; i++)
         {
-            if (anchor == null)
-                continue;
-
-            if (player == null)
-                return anchor;
-
-            float distance = Vector2.Distance(anchor.position, player.position);
-
-            if (distance > bestDistanceFromPlayer)
+            if (teleportAnchors[i] == null) continue;
+            if (seen == pick)
             {
-                bestDistanceFromPlayer = distance;
-                best = anchor;
+                Log($"Teleport pick: anchor[{i}] of {teleportAnchors.Length} at {teleportAnchors[i].position}");
+                return teleportAnchors[i];
             }
+            seen++;
         }
-
-        return best;
+        return null;
     }
 
     private void SpawnFanProjectiles()
@@ -920,7 +947,7 @@ public class BringerOfDeath : EnemyBase
 
     private void LogVerbose(string message)
     {
-        if (debugLogs && false)
+        if (debugLogs)
             Debug.Log("[BringerOfDeath][Verbose] " + message, this);
     }
 
@@ -932,10 +959,8 @@ public class BringerOfDeath : EnemyBase
 
         float facing = Application.isPlaying ? FacingSign() : 1f;
 
-        Vector2 origin = (Vector2)transform.position + new Vector2(
-            facing * slashHitboxOffset.x,
-            slashHitboxOffset.y
-        );
+        Vector2 origin = (Vector2)transform.position +
+                         new Vector2(facing * slashRange * 0.5f, 0f);
 
         Gizmos.DrawWireCube(origin, slashHitboxSize);
 
@@ -943,10 +968,12 @@ public class BringerOfDeath : EnemyBase
 
         if (teleportAnchors != null)
         {
-            foreach (Transform anchor in teleportAnchors)
+            for (int i = 0; i < teleportAnchors.Length; i++)
             {
-                if (anchor != null)
-                    Gizmos.DrawWireSphere(anchor.position, 0.4f);
+                if (teleportAnchors[i] != null)
+                {
+                    Gizmos.DrawWireSphere(teleportAnchors[i].position, 0.4f);
+                }
             }
         }
 

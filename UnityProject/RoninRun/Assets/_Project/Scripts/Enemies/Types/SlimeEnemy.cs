@@ -14,6 +14,12 @@ public class SlimeEnemy : EnemyBase
     [SerializeField] private Animator animator;
     [SerializeField] private SlimeAttack slimeAttack;
 
+    [Header("SFX")]
+    [Tooltip("Sound played at the start of each attack (the tornado).")]
+    [SerializeField] private SfxId attackSfx = SfxId.SlimeAttack;
+    [Range(0f, 1f)]
+    [SerializeField] private float attackSfxVolume = 1f;
+
     private int _patrolDirection = 1;
     private bool _isChasingPlayer;
     private bool _isPerformingAttack;
@@ -50,6 +56,15 @@ public class SlimeEnemy : EnemyBase
 
         _isChasingPlayer = distance <= detectionRange;
 
+        // Always face the player when they're in attack range, even during
+        // the cooldown between dashes. Without this the slime can end up
+        // looking the wrong way while waiting to attack again.
+        if (!_isPerformingAttack && player != null && distance <= attackTriggerRange)
+        {
+            float faceDir = Mathf.Sign(player.position.x - transform.position.x);
+            UpdateFacingFromDirection(faceDir);
+        }
+
         if (!_isPerformingAttack && distance <= attackTriggerRange && _attackTimer <= 0f)
         {
             StartCoroutine(AttackRoutine());
@@ -62,6 +77,14 @@ public class SlimeEnemy : EnemyBase
             animator.SetFloat("Speed", speedValue);
             animator.SetBool("IsAttacking", _isPerformingAttack);
         }
+    }
+
+    // SlimeEnemy flips using transform.localScale.x (because the slime sprite's
+    // default-facing is LEFT). The base class also tries to flip via
+    // spriteRenderer.flipX, which would *double-flip* on top of our scale flip
+    // and make the slime look the wrong way. Suppress it here.
+    protected override void UpdateFacing()
+    {
     }
 
     protected override void TickMovement()
@@ -90,16 +113,16 @@ public class SlimeEnemy : EnemyBase
             return;
         }
 
-        float targetX = _patrolDirection > 0 ? rightPoint.position.x : leftPoint.position.x;
-
-        Vector2 target = new Vector2(targetX, rb.position.y);
-        Vector2 newPosition = Vector2.MoveTowards(rb.position, target, moveSpeed * Time.fixedDeltaTime);
-        rb.MovePosition(newPosition);
-
+        // Flip patrol direction when hitting a patrol bound.
         if (_patrolDirection > 0 && transform.position.x >= rightPoint.position.x - 0.05f)
             _patrolDirection = -1;
         else if (_patrolDirection < 0 && transform.position.x <= leftPoint.position.x + 0.05f)
             _patrolDirection = 1;
+
+        // Velocity-based movement: drive X, let physics handle Y (gravity).
+        // Using MovePosition here would re-pin Y every fixed step and make
+        // the slime levitate whenever it walks off a ledge.
+        rb.linearVelocity = new Vector2(_patrolDirection * moveSpeed, rb.linearVelocity.y);
 
         UpdateFacingFromDirection(_patrolDirection);
     }
@@ -109,10 +132,10 @@ public class SlimeEnemy : EnemyBase
         if (player == null) return;
 
         float directionX = Mathf.Sign(player.position.x - transform.position.x);
-        Vector2 target = new Vector2(transform.position.x + directionX, rb.position.y);
-        Vector2 newPosition = Vector2.MoveTowards(rb.position, target, moveSpeed * Time.fixedDeltaTime);
 
-        rb.MovePosition(newPosition);
+        // Velocity-based chase. Preserve current Y velocity so gravity
+        // applies normally when the slime is mid-air.
+        rb.linearVelocity = new Vector2(directionX * moveSpeed, rb.linearVelocity.y);
 
         UpdateFacingFromDirection(directionX);
     }
@@ -126,8 +149,10 @@ public class SlimeEnemy : EnemyBase
 
         Vector3 scale = transform.localScale;
 
-        // slime faces LEFT by default
-        scale.x = directionX > 0 ? -_originalScaleX : _originalScaleX;
+        // Slime sprite faces RIGHT at its natural (positive) scale.
+        // Moving right  -> keep positive scale.
+        // Moving left   -> negate scale to mirror the sprite.
+        scale.x = directionX > 0 ? _originalScaleX : -_originalScaleX;
 
         transform.localScale = scale;
     }
@@ -145,6 +170,11 @@ public class SlimeEnemy : EnemyBase
 
         if (animator != null)
             animator.SetBool("IsAttacking", true);
+
+        if (attackSfx != SfxId.None && AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySfx(attackSfx, attackSfxVolume);
+        }
 
         yield return slimeAttack.PerformDashAttack();
 

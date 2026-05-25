@@ -5,14 +5,22 @@ using UnityEngine;
 public class SlimeAttack : MonoBehaviour
 {
     [Header("Attack")]
+    [Tooltip("Optional. If null, the hit origin is computed from the slime's " +
+             "transform + facing direction so the scene doesn't need a child " +
+             "AttackPoint object wired up.")]
     [SerializeField] private Transform attackPoint;
     [SerializeField] private Vector2 attackBoxSize = new Vector2(3.5f, 2f);
+    [Tooltip("How far in front of the slime to center the hit box when no " +
+             "attackPoint is assigned. Defaults to half the box width.")]
+    [SerializeField] private float fallbackReach = -1f;
     [SerializeField] private LayerMask playerLayer;
     [SerializeField] private int damage = 1;
     [SerializeField] private float knockbackForce = 14f;
 
     [Header("Dash")]
-    [SerializeField] private float windupDelay = 0.18f;
+    [Tooltip("Kept for backwards compat. Set to 0 so the spin and the forward " +
+             "thrust start at the same instant. A value > 0 will spin in place first.")]
+    [SerializeField] private float windupDelay = 0f;
     [SerializeField] private float dashDistance = 4f;
     [SerializeField] private float dashDuration = 0.35f;
     [SerializeField] private float hitMoment = 0.5f;
@@ -40,21 +48,25 @@ public class SlimeAttack : MonoBehaviour
 
         UpdateAttackPointFacing();
 
-        // Let the spin animation start first
-        yield return new WaitForSeconds(windupDelay);
+        // Optional pre-spin wait. Default is 0 so the spin and thrust happen
+        // simultaneously (the slime lunges while spinning).
+        if (windupDelay > 0f)
+            yield return new WaitForSeconds(windupDelay);
 
-        Vector2 startPos = _rb.position;
-        Vector2 endPos = startPos + new Vector2(_slimeEnemy.FacingDirection * dashDistance, 0f);
+        // Drive the dash via X-velocity only. We deliberately don't touch
+        // linearVelocity.y so gravity still applies — otherwise the slime
+        // would levitate horizontally if a dash starts while it's mid-air.
+        float dirX = _slimeEnemy.FacingDirection;
+        float dashSpeed = dashDuration > 0f ? dashDistance / dashDuration : 0f;
 
         float elapsed = 0f;
 
         while (elapsed < dashDuration)
         {
+            _rb.linearVelocity = new Vector2(dirX * dashSpeed, _rb.linearVelocity.y);
+
             elapsed += Time.fixedDeltaTime;
             float t = Mathf.Clamp01(elapsed / dashDuration);
-
-            Vector2 newPos = Vector2.Lerp(startPos, endPos, t);
-            _rb.MovePosition(newPos);
 
             if (!_hasHitDuringThisAttack && t >= hitMoment)
             {
@@ -64,14 +76,18 @@ public class SlimeAttack : MonoBehaviour
 
             yield return new WaitForFixedUpdate();
         }
+
+        // Kill horizontal momentum at the end of the dash so the slime
+        // doesn't slide; gravity (Y) is preserved.
+        _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
     }
 
     public void DoAttackHit()
     {
-        UpdateAttackPointFacing();
+        Vector2 hitOrigin = GetHitOrigin();
 
         Collider2D[] hits = Physics2D.OverlapBoxAll(
-            attackPoint.position,
+            hitOrigin,
             attackBoxSize,
             0f,
             playerLayer
@@ -89,20 +105,36 @@ public class SlimeAttack : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// World-space center of the attack hitbox.
+    /// Uses the assigned AttackPoint child if available, otherwise computes a
+    /// position in front of the slime based on its facing direction.
+    /// </summary>
+    private Vector2 GetHitOrigin()
+    {
+        if (attackPoint != null)
+            return attackPoint.position;
+
+        float facing = _slimeEnemy != null ? _slimeEnemy.FacingDirection : 1f;
+        float reach = fallbackReach > 0f ? fallbackReach : attackBoxSize.x * 0.5f;
+        return (Vector2)transform.position + new Vector2(facing * reach, 0f);
+    }
+
     private void UpdateAttackPointFacing()
     {
-        if (_slimeEnemy == null || attackPoint == null) return;
-
-        Vector3 localPos = attackPoint.localPosition;
-        localPos.x = _slimeEnemy.FacingDirection > 0 ? _originalAttackPointX : -_originalAttackPointX;
-        attackPoint.localPosition = localPos;
+        // No-op: AttackPoint is a child of the slime root, which flips via
+        // transform.localScale.x. The child's local position is automatically
+        // mirrored by the parent scale, so we don't (and shouldn't) move it
+        // manually — doing so would double-flip the hitbox to the wrong side.
     }
 
     private void OnDrawGizmosSelected()
     {
-        if (attackPoint == null) return;
+        Vector3 origin = attackPoint != null
+            ? attackPoint.position
+            : transform.position + new Vector3(attackBoxSize.x * 0.5f, 0f, 0f);
 
         Gizmos.color = Color.magenta;
-        Gizmos.DrawWireCube(attackPoint.position, attackBoxSize);
+        Gizmos.DrawWireCube(origin, attackBoxSize);
     }
 }

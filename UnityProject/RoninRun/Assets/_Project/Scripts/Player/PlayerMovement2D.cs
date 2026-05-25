@@ -19,6 +19,18 @@ public class PlayerMovement2D : MonoBehaviour
     [SerializeField] private float groundCheckRadius = 0.18f;
     [SerializeField] private LayerMask groundLayer;
 
+    [Header("Jump Feel")]
+    [Tooltip("Seconds after leaving the ground where you can still trigger a normal jump.")]
+    [SerializeField] private float coyoteTime = 0.10f;
+    [Tooltip("Seconds before landing where a jump press still counts after touchdown.")]
+    [SerializeField] private float jumpBufferTime = 0.10f;
+
+    // Cached reference to the more accurate ground detector. If present, it
+    // overrides the OverlapCircle fallback so movement and animator agree.
+    private GroundDetector2D _groundDetector;
+    private float _lastGroundedTime = -999f;
+    private float _lastJumpPressedTime = -999f;
+
     [Header("Input Actions")]
     [SerializeField] private InputActionReference moveAction;
     [SerializeField] private InputActionReference jumpAction;
@@ -40,6 +52,7 @@ public class PlayerMovement2D : MonoBehaviour
     {
         _rb = GetComponent<Rigidbody2D>();
         _sr = GetComponent<SpriteRenderer>();
+        _groundDetector = GetComponent<GroundDetector2D>();
         _jumpsRemaining = maxJumps;
     }
 
@@ -88,6 +101,7 @@ public class PlayerMovement2D : MonoBehaviour
         if (IsGrounded())
         {
             _jumpsRemaining = maxJumps;
+            _lastGroundedTime = Time.time;
         }
     }
 
@@ -96,10 +110,25 @@ public class PlayerMovement2D : MonoBehaviour
         if (jumpAction == null || jumpAction.action == null)
             return;
 
-        if (!jumpAction.action.WasPressedThisFrame())
+        // Record presses into a small buffer so a tap right BEFORE landing
+        // still counts a frame or two after touchdown.
+        if (jumpAction.action.WasPressedThisFrame())
+        {
+            _lastJumpPressedTime = Time.time;
+        }
+
+        bool jumpQueued = (Time.time - _lastJumpPressedTime) <= jumpBufferTime;
+        if (!jumpQueued)
             return;
 
-        if (IsGrounded())
+        bool grounded = IsGrounded();
+        bool inCoyote = (Time.time - _lastGroundedTime) <= coyoteTime;
+
+        // Ensure jump counter is correct in two cases the old code missed:
+        //  - we just landed THIS frame and Update beat FixedUpdate to it
+        //  - the OverlapCircle fallback flickers false even though
+        //    GroundDetector2D agrees we're on ground (now also queried).
+        if (grounded || inCoyote)
         {
             _jumpsRemaining = maxJumps;
         }
@@ -107,6 +136,8 @@ public class PlayerMovement2D : MonoBehaviour
         if (_jumpsRemaining <= 0)
             return;
 
+        // Consume the buffered press so we don't double-fire.
+        _lastJumpPressedTime = -999f;
         PerformJump();
     }
 
@@ -163,10 +194,16 @@ public class PlayerMovement2D : MonoBehaviour
 
     private bool IsGrounded()
     {
+        // Prefer the dedicated GroundDetector2D (collider-cast based) when it
+        // exists — it agrees with the animator and doesn't suffer from the
+        // OverlapCircle-misses-gap-between-tiles failure mode.
+        if (_groundDetector != null && _groundDetector.IsGrounded)
+            return true;
+
+        // Fallback: the original OverlapCircle check, in case GroundDetector2D
+        // is missing for some reason.
         if (groundCheck == null)
-        {
             return false;
-        }
 
         return Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
     }
