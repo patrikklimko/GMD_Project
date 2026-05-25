@@ -12,7 +12,7 @@ The deployable target is the VIA Arcade Machine in the XR Lab (NVIDIA GTX 980 Ti
 
 | GitHub        | Full name      | Student number               |
 |---------------|----------------|------------------------------|
-| @patrikklimko | Patrik Klimko  | `<YOUR_STUDENT_NUMBER>`      |
+| @patrikklimko | Patrik Klimko  | `343811`      |
 
 This is a **solo** project. All commits in this repository represent my own work.
 
