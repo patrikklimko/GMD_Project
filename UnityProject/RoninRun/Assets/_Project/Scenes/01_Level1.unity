@@ -379,7 +379,7 @@ MonoBehaviour:
   fallbackReach: -1
   playerLayer:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 9
   damage: 1
   knockbackForce: 14
   windupDelay: 0
@@ -1098,7 +1098,7 @@ MonoBehaviour:
   fallbackReach: -1
   playerLayer:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 9
   damage: 1
   knockbackForce: 14
   windupDelay: 0
@@ -4562,7 +4562,7 @@ MonoBehaviour:
   fallbackReach: -1
   playerLayer:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 9
   damage: 1
   knockbackForce: 14
   windupDelay: 0
@@ -86366,7 +86366,7 @@ MonoBehaviour:
   fallbackReach: -1
   playerLayer:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 9
   damage: 1
   knockbackForce: 14
   windupDelay: 0
@@ -86633,7 +86633,7 @@ MonoBehaviour:
   fallbackReach: -1
   playerLayer:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 9
   damage: 1
   knockbackForce: 14
   windupDelay: 0
@@ -87014,7 +87014,7 @@ MonoBehaviour:
   fallbackReach: -1
   playerLayer:
     serializedVersion: 2
-    m_Bits: 1
+    m_Bits: 9
   damage: 1
   knockbackForce: 14
   windupDelay: 0
