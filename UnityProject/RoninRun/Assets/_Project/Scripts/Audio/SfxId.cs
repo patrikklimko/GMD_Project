@@ -37,5 +37,10 @@ EnemyDeathSlime,
 
     // Game flow
     LevelComplete,
-    Victory
+    Victory,
+
+    // Enemy sounds
+    SlimeAttack,
+    BossAttack,
+    BossDeath
 }
