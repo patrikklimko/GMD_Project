@@ -35,11 +35,9 @@ The course requires six blog posts, each living as a markdown file in this repos
 | 1  | [Roll-a-Ball: How We Expanded the Game](Documentation/Roll%20a%20Ball/Roll%20a%20Ball.md) | Published |
 | 2  | [Game Design Document & Milestones](Documentation/GDD%20and%20Milestones/GDD%20and%20Milestones.md) | Published |
 | 3  | [Milestone 1 — Wizard, EnemyConfigSO, Pause Menu](Documentation/Milestone%201%20-%20Wizard%20and%20Pause/Milestone%201.md) | Published |
-| 4  | Milestone 2 — Audio + game-feel polish + pause menu | _Planned_    |
-| 5  | Milestone 3 — Bringer of Death boss + integration  | _Planned_     |
-| 6  | Final showcase & reflection                        | _Planned_     |
-
-Posts 2–6 will be added under `Documentation/` as work progresses; this table will be updated each time.
+| 4  | [Milestone 2 — Audio Architecture and Slime Combat Polish](Documentation/Milestone%202%20-%20Audio%20and%20Slime%20Polish/Milestone%202.md) | Published |
+| 5  | [Milestone 3 — Bringer of Death, Bootstrappers, and Player-Feel Polish](Documentation/Milestone%203%20-%20Boss%20and%20Bootstrappers/Milestone%203.md) | Published |
+| 6  | [Final Showcase — RoninRun, Shipped](Documentation/Final%20Game%20Showcase/Final%20Game%20Product.md) | Published |
 
 ---
 
